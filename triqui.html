@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Triqui</title>
+<style>
+  :root{
+    --fondo:#12141A; --panel:#191C25; --celda:#212633; --celdaGana:#2C3446;
+    --linea:#2E3442; --texto:#E9EBF1; --suave:#868D9F;
+    --x:#5AA9FF; --o:#FFB454; --ok:#4ADE80; --medio:#FFD166; --mal:#FF6B6B;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--fondo);color:var(--texto);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    -webkit-text-size-adjust:100%}
+  body{min-height:100dvh;display:flex;justify-content:center;
+    padding:24px 16px calc(28px + env(safe-area-inset-bottom))}
+  .caja{width:100%;max-width:380px}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:8px 0 6px}
+  .sub{color:var(--suave);font-size:14px;line-height:1.5;margin:0 0 26px}
+  button{font-family:inherit}
+  .btn{width:100%;padding:14px 16px;border-radius:12px;border:1px solid transparent;
+    background:var(--x);color:#0B1220;font-size:15px;font-weight:600;cursor:pointer}
+  .btn.sec{background:transparent;border-color:var(--linea);color:var(--texto)}
+  .btn:disabled{opacity:.55;cursor:default}
+  .btn:focus-visible,input:focus-visible,.celda:focus-visible,.chip:focus-visible{
+    outline:2px solid var(--x);outline-offset:2px}
+  .sep{display:flex;align-items:center;gap:12px;margin:22px 0 18px;color:var(--suave);font-size:13px}
+  .sep i{height:1px;background:var(--linea);flex:1}
+  .fila{display:flex;gap:10px}
+  input{flex:1;min-width:0;padding:14px 16px;border-radius:12px;border:1px solid var(--linea);
+    background:var(--panel);color:var(--texto);font-size:20px;font-weight:600;
+    letter-spacing:.18em;text-align:center;outline:none}
+  .aviso{color:var(--mal);font-size:14px;line-height:1.5;margin:16px 0 0}
+  .barra{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .salir{background:none;border:none;color:var(--suave);font-size:14px;padding:0;cursor:pointer}
+  .chip{background:var(--panel);border:1px solid var(--linea);color:var(--texto);border-radius:999px;
+    padding:7px 14px;font-size:14px;font-weight:600;letter-spacing:.14em;cursor:pointer}
+  .estado{font-size:24px;font-weight:700;letter-spacing:-.01em}
+  .yo{color:var(--suave);font-size:14px}
+  .tablero{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .celda{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;
+    background:var(--celda);border:1px solid var(--linea);border-radius:14px;padding:0;cursor:default}
+  .celda.jugable{cursor:pointer}
+  .celda.gana{background:var(--celdaGana)}
+  .celda svg{width:62%;height:62%}
+  .pie{display:flex;align-items:center;justify-content:space-between;margin-top:22px;
+    padding-top:16px;border-top:1px solid var(--linea);font-size:14px;color:var(--suave)}
+  .marcador{display:flex;gap:16px}
+  .punto{width:8px;height:8px;border-radius:999px;display:inline-block}
+  .modo{display:flex;align-items:center;gap:7px}
+  .oculto{display:none}
+  .tenue{opacity:.45}
+</style>
+</head>
+<body>
+<div class="caja">
+
+  <div id="inicio">
+    <h1>Triqui</h1>
+    <p class="sub">Dos teléfonos, una sala. Quien empieza se sortea en cada partida.</p>
+    <button class="btn" id="bCrear">Crear una sala</button>
+    <div class="sep"><i></i><span>o entra con un código</span><i></i></div>
+    <div class="fila">
+      <input id="codigo" placeholder="ABCD" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false">
+      <button class="btn sec" id="bEntrar" style="width:auto;padding-left:22px;padding-right:22px">Entrar</button>
+    </div>
+    <p class="aviso oculto" id="aviso"></p>
+    <div class="pie" style="margin-top:24px">
+      <span class="modo"><span class="punto" id="pDiag" style="background:var(--suave)"></span><span id="tDiag">Probando la conexión…</span></span>
+    </div>
+  </div>
+
+  <div id="juego" class="oculto">
+    <div class="barra">
+      <button class="salir" id="bSalir">Salir</button>
+      <button class="chip" id="bCodigo">····</button>
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <span class="estado" id="tEstado">Conectando</span>
+        <span class="yo" id="tYo"></span>
+      </div>
+      <p class="sub oculto" id="tEspera" style="margin:8px 0 0"></p>
+    </div>
+    <div class="tablero" id="tablero"></div>
+    <button class="btn oculto" id="bRevancha" style="margin-top:18px">Jugar otra</button>
+    <div class="pie">
+      <span class="marcador" id="tMarcador"></span>
+      <span class="modo"><span class="punto" id="pModo" style="background:var(--suave)"></span><span id="tModo">conectando</span></span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+window.onerror = function(msg, src, ln){
+  try {
+    var a = document.getElementById("aviso");
+    if (a){ a.textContent = "El juego se detuvo: " + msg + " (línea " + ln + ")"; a.classList.remove("oculto"); }
+    var d = document.getElementById("tDiag");
+    if (d) d.textContent = "Error al iniciar";
+    var p = document.getElementById("pDiag");
+    if (p) p.style.background = "var(--mal)";
+  } catch(e){}
+  return false;
+};
+
+const DB = "https://projectoialive-default-rtdb.firebaseio.com";
+const ruta = c => DB + "/triqui/salas/" + c + ".json";
+const LINEAS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const VACIO = "---------";
+const $ = id => document.getElementById(id);
+
+// Algunos navegadores integrados lanzan excepción al tocar localStorage.
+let pid = "";
+try { pid = localStorage.getItem("triqui_pid") || ""; } catch(e){}
+if (!pid){
+  pid = Math.random().toString(36).slice(2,10);
+  try { localStorage.setItem("triqui_pid", pid); } catch(e){}
+}
+
+let sala = null, codigo = "", simbolo = null, fuente = null, sondeo = null, modo = "conectando", msEscritura = null;
+
+const nuevoCodigo = () => Array.from({length:4}, () => ALFABETO[Math.floor(Math.random()*ALFABETO.length)]).join("");
+
+function revisar(t){
+  for (const l of LINEAS){
+    const [a,b,c] = l;
+    if (t[a] !== "-" && t[a] === t[b] && t[a] === t[c]) return {ganador:t[a], linea:l.join("")};
+  }
+  if (!t.includes("-")) return {ganador:"empate", linea:""};
+  return null;
+}
+
+// Firebase borra las claves con valor null: todo lo "vacío" viaja como "" o string.
+const normalizar = s => s ? {
+  v:s.v||0, tablero:s.tablero||VACIO, turno:s.turno||"X", inicia:s.inicia||"X",
+  asientoX:s.asientoX||"", asientoO:s.asientoO||"", ganador:s.ganador||"", linea:s.linea||"",
+  puntosX:s.puntosX||0, puntosO:s.puntosO||0, empates:s.empates||0, actualizado:s.actualizado||0
+} : null;
+
+async function leer(c){
+  const r = await fetch(ruta(c));
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return normalizar(await r.json());
+}
+
+async function escribir(c, s){
+  const t0 = Date.now();
+  const r = await fetch(ruta(c), {method:"PUT", body:JSON.stringify(s)});
+  if (!r.ok) throw new Error("HTTP " + r.status + " " + (await r.text()).slice(0,120));
+  return Date.now() - t0;
+}
+
+function aplicar(s){
+  if (!s) return;
+  if (!sala || s.v >= sala.v){ sala = s; pintar(); }
+}
+
+function setModo(m){ modo = m; pintarModo(); }
+
+function escuchar(){
+  cortar();
+  let llego = false;
+  try {
+    fuente = new EventSource(ruta(codigo));
+    const manejar = e => {
+      llego = true; setModo("vivo");
+      try {
+        const d = JSON.parse(e.data);
+        if (d.path === "/" && d.data) aplicar(normalizar(d.data));
+        else leer(codigo).then(aplicar).catch(()=>{});
+      } catch(err){}
+    };
+    fuente.addEventListener("put", manejar);
+    fuente.addEventListener("patch", manejar);
+    fuente.onerror = () => { try{fuente.close()}catch(e){} fuente = null; sondear(); };
+  } catch(e){ sondear(); }
+  setTimeout(() => { if (!llego && !sondeo) sondear(); }, 4000);
+}
+
+function sondear(){
+  if (sondeo) return;
+  const tic = async () => {
+    try { aplicar(await leer(codigo)); if (modo !== "vivo") setModo("sondeo"); }
+    catch(e){ setModo("caido"); }
+    sondeo = setTimeout(tic, 1300);
+  };
+  sondeo = setTimeout(tic, 100);
+}
+
+function cortar(){
+  if (fuente){ try{fuente.close()}catch(e){} fuente = null; }
+  if (sondeo){ clearTimeout(sondeo); sondeo = null; }
+}
+
+function mostrarAviso(t){ const a = $("aviso"); a.textContent = t; a.classList.toggle("oculto", !t); }
+
+async function crear(){
+  $("bCrear").disabled = true; mostrarAviso("");
+  try {
+    const c = nuevoCodigo();
+    simbolo = Math.random() < .5 ? "X" : "O";
+    const inicia = Math.random() < .5 ? "X" : "O";
+    const s = {v:1, tablero:VACIO, turno:inicia, inicia:inicia,
+      asientoX: simbolo==="X"?pid:"", asientoO: simbolo==="O"?pid:"",
+      ganador:"", linea:"", puntosX:0, puntosO:0, empates:0, actualizado:Date.now()};
+    await escribir(c, s);
+    codigo = c; sala = s;
+    location.hash = c;
+    abrirJuego();
+  } catch(e){ mostrarAviso("No se pudo crear la sala: " + (e.message||e)); }
+  $("bCrear").disabled = false;
+}
+
+async function entrar(c){
+  c = (c||"").trim().toUpperCase();
+  if (c.length !== 4){ mostrarAviso("El código tiene 4 caracteres."); return; }
+  $("bEntrar").disabled = true; mostrarAviso("");
+  try {
+    let s = await leer(c);
+    if (!s){ mostrarAviso("No existe la sala " + c + "."); $("bEntrar").disabled = false; return; }
+    let mio = s.asientoX === pid ? "X" : s.asientoO === pid ? "O" : null;
+    if (!mio){
+      if (!s.asientoX) mio = "X";
+      else if (!s.asientoO) mio = "O";
+      else { mostrarAviso("Esa sala ya tiene dos jugadores."); $("bEntrar").disabled = false; return; }
+      const conAsiento = Object.assign({}, s, {v:s.v+1, actualizado:Date.now()});
+      conAsiento[mio === "X" ? "asientoX" : "asientoO"] = pid;
+      await escribir(c, conAsiento);
+      await new Promise(r => setTimeout(r, 500));
+      s = await leer(c);
+      const dueño = mio === "X" ? s.asientoX : s.asientoO;
+      if (dueño !== pid){ mostrarAviso("Otro jugador tomó ese lugar primero."); $("bEntrar").disabled = false; return; }
+    }
+    codigo = c; simbolo = mio; sala = s;
+    location.hash = c;
+    abrirJuego();
+  } catch(e){ mostrarAviso("No se pudo entrar: " + (e.message||e)); }
+  $("bEntrar").disabled = false;
+}
+
+function abrirJuego(){
+  $("inicio").classList.add("oculto");
+  $("juego").classList.remove("oculto");
+  $("bCodigo").textContent = codigo;
+  pintar(); escuchar();
+}
+
+function salir(){
+  cortar();
+  sala = null; codigo = ""; simbolo = null; setModo("conectando");
+  location.hash = "";
+  $("juego").classList.add("oculto");
+  $("inicio").classList.remove("oculto");
+}
+
+async function jugar(i){
+  if (!sala || sala.ganador || sala.tablero[i] !== "-" || sala.turno !== simbolo) return;
+  if (!sala.asientoX || !sala.asientoO) return;
+  const tablero = sala.tablero.slice(0,i) + simbolo + sala.tablero.slice(i+1);
+  const res = revisar(tablero);
+  const s = Object.assign({}, sala, {
+    tablero, v: sala.v+1, turno: simbolo === "X" ? "O" : "X",
+    ganador: res ? res.ganador : "", linea: res ? res.linea : "",
+    puntosX: sala.puntosX + (res && res.ganador === "X" ? 1 : 0),
+    puntosO: sala.puntosO + (res && res.ganador === "O" ? 1 : 0),
+    empates: sala.empates + (res && res.ganador === "empate" ? 1 : 0),
+    actualizado: Date.now()
+  });
+  sala = s; pintar();
+  try { msEscritura = await escribir(codigo, s); pintarModo(); }
+  catch(e){ setModo("caido"); }
+}
+
+async function revancha(){
+  if (!sala || !sala.ganador) return;
+  const inicia = Math.random() < .5 ? "X" : "O";
+  const s = Object.assign({}, sala, {tablero:VACIO, turno:inicia, inicia:inicia,
+    ganador:"", linea:"", v:sala.v+1, actualizado:Date.now()});
+  sala = s; pintar();
+  try { await escribir(codigo, s); } catch(e){ setModo("caido"); }
+}
+
+const color = s => s === "X" ? "var(--x)" : "var(--o)";
+const glifo = (t, c) => t === "X"
+  ? '<svg viewBox="0 0 100 100" aria-hidden="true"><g stroke="'+c+'" stroke-width="11" stroke-linecap="round" fill="none"><line x1="22" y1="22" x2="78" y2="78"/><line x1="78" y1="22" x2="22" y2="78"/></g></svg>'
+  : '<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="29" stroke="'+c+'" stroke-width="11" fill="none"/></svg>';
+
+function pintar(){
+  if (!sala) return;
+  const espera = !sala.asientoX || !sala.asientoO;
+  const miTurno = sala.turno === simbolo && !sala.ganador && !espera;
+
+  $("tEstado").textContent = espera ? "Esperando a tu rival"
+    : sala.ganador === "empate" ? "Empate"
+    : sala.ganador ? (sala.ganador === simbolo ? "Ganaste" : "Ganó tu rival")
+    : (miTurno ? "Tu turno" : "Turno de tu rival");
+
+  $("tYo").innerHTML = 'juegas con <span style="color:'+color(simbolo)+';font-weight:700">'+(simbolo==="X"?"×":"○")+'</span>';
+
+  const esp = $("tEspera");
+  esp.classList.toggle("oculto", !espera);
+  if (espera) esp.textContent = "Mándale este enlace por WhatsApp. Entra directo a la sala " + codigo + ".";
+
+  const t = $("tablero");
+  t.classList.toggle("tenue", espera);
+  t.innerHTML = "";
+  for (let i = 0; i < 9; i++){
+    const v = sala.tablero[i];
+    const gana = sala.linea.includes(String(i));
+    const b = document.createElement("button");
+    b.className = "celda" + (gana ? " gana" : "") + (miTurno && v === "-" ? " jugable" : "");
+    if (gana) b.style.borderColor = color(sala.ganador);
+    b.disabled = !(miTurno && v === "-");
+    b.setAttribute("aria-label", "Casilla " + (i+1) + (v === "-" ? ", vacía" : ", " + v));
+    if (v !== "-") b.innerHTML = glifo(v, color(v));
+    b.onclick = () => jugar(i);
+    t.appendChild(b);
+  }
+
+  $("bRevancha").classList.toggle("oculto", !sala.ganador);
+  $("tMarcador").innerHTML =
+    '<span><span style="color:var(--x);font-weight:700">×</span> '+sala.puntosX+'</span>' +
+    '<span><span style="color:var(--o);font-weight:700">○</span> '+sala.puntosO+'</span>' +
+    '<span>empates '+sala.empates+'</span>';
+  pintarModo();
+}
+
+function pintarModo(){
+  const c = modo === "vivo" ? "var(--ok)" : modo === "sondeo" ? "var(--medio)" : modo === "caido" ? "var(--mal)" : "var(--suave)";
+  const t = modo === "vivo" ? "en vivo" : modo === "sondeo" ? "sondeo 1.3s" : modo === "caido" ? "sin conexión" : "conectando";
+  $("pModo").style.background = c;
+  $("tModo").textContent = t + (msEscritura !== null ? " · " + msEscritura + "ms" : "");
+}
+
+async function diagnosticar(){
+  try {
+    const r = await fetch(DB + "/triqui/ping.json", {method:"PUT", body:JSON.stringify(Date.now())});
+    if (!r.ok) throw new Error("HTTP " + r.status + " " + (await r.text()).slice(0,120));
+    $("pDiag").style.background = "var(--ok)";
+    $("tDiag").textContent = "Firebase responde";
+  } catch(e){
+    $("pDiag").style.background = "var(--mal)";
+    $("tDiag").textContent = "Firebase no responde: " + (e.message||e);
+  }
+}
+
+$("bCrear").onclick = crear;
+$("bEntrar").onclick = () => entrar($("codigo").value);
+$("codigo").oninput = e => { e.target.value = e.target.value.toUpperCase().slice(0,4); };
+$("codigo").onkeydown = e => { if (e.key === "Enter") entrar($("codigo").value); };
+$("bSalir").onclick = salir;
+$("bRevancha").onclick = revancha;
+$("bCodigo").onclick = async () => {
+  try { await navigator.clipboard.writeText(location.href); $("bCodigo").textContent = "Copiado"; }
+  catch(e){ $("bCodigo").textContent = codigo; }
+  setTimeout(() => { $("bCodigo").textContent = codigo; }, 1600);
+};
+
+function codigoDeUrl(){
+  const h = (location.hash || "").replace("#","").trim().toUpperCase();
+  if (h.length === 4) return h;
+  const m = (location.search || "").match(/sala=([A-Za-z0-9]{4})/);
+  return m ? m[1].toUpperCase() : "";
+}
+
+diagnosticar();
+const desdeUrl = codigoDeUrl();
+if (desdeUrl){
+  $("codigo").value = desdeUrl;
+  entrar(desdeUrl);
+}
+</script>
+</body>
+</html>
